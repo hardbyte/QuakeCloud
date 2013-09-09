@@ -329,15 +329,7 @@ class vtkTimerCallback():
         self.timer_count += 1
 
 
-class Set_Render_Variables(object, fname,
-
-    display_mag_threshold=1, display_event_window_in_event_blocks=6,
-    minutes_per_event_block=20, replay_frame_speed=50, display_point_scalar_for_quake_points=10,
-    display_quake_points_log=False, display_quake_points_linear=True, display_quake_points_only_no_mag=False,
-    plot_boundary_markers=False,
-    
-    overlay_image_fname="overlay.jpg", map_height=0, long_min=174, long_max=175, lat_min=-41, lat_max=-42
-    multiplier=1):
+class Set_Render_Variables(object):
     """ 
     Used to set the various controsl that allow the user to specify the supported "look", timing and map options.
     
@@ -415,7 +407,13 @@ class Set_Render_Variables(object, fname,
         used to allow the whole model to be scaled up if needed
         WARNING: danger zone, has bugs
     """
-    def __init__(self):
+    def __init__(self, fname, display_mag_threshold=1, display_event_window_in_event_blocks=6,
+    minutes_per_event_block=20, replay_frame_speed=50, display_point_scalar_for_quake_points=10,
+    display_quake_points_log=False, display_quake_points_linear=True, display_quake_points_only_no_mag=False,
+    plot_boundary_markers=False, plot_depth_scale=True,
+
+    overlay_image_fname="overlay.jpg", map_height=0, long_min=174, long_max=175, lat_min=-41, lat_max=-42,
+    multiplier=1):
         # Display Vars
         self.display_mag_threshold = display_mag_threshold 
         self.display_event_window_in_event_blocks = display_event_window_in_event_blocks
@@ -426,7 +424,7 @@ class Set_Render_Variables(object, fname,
         self.display_quake_points_linear = display_quake_points_linear
         self.display_quake_points_only_no_mag = display_quake_points_only_no_mag 
         self.plot_boundary_markers = plot_boundary_markers
-        self.plot_depth_scale =plot_depth_scale
+        self.plot_depth_scale = plot_depth_scale
 
         # quake_data_location
         self.fname = fname
@@ -442,7 +440,7 @@ class Set_Render_Variables(object, fname,
 
 
 def main():
-    session = Set_Render_Variables("quake(13).csv")
+    session = Set_Render_Variables("quake_data.csv")
 
     data = Data_Extractor(session)
     bounds = Model_Bounds_Points_Maker(data, session)
