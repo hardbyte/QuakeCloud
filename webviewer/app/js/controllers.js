@@ -1,207 +1,227 @@
-'use strict';
-
 /* Controllers */
 
 angular.module('myApp.controllers', []).
-   controller('MyCtrl1', ['googleapikey', function(googleapikey) {
-   // 174,-41,175,-42
-   var clong = 174.5,
-     clat  = -41.5;
-    /*
-     * I want to just be given two lat/long coordinates and then get the data.
-     * That way I'll know the bounds.
-     * */
-   // TODO get the data async from geonet
-   var data = [
-       {id:"2013p546751", date: "2013-07-22T07:09:17.365", longitude: 174.4098, latitude: -41.5155, depth: 14.9609, magnitude: 2.547},
-       {id:"2013p546749", date: "2013-07-22T07:08:06.2", longitude: 174.3279, latidute:-41.6007, depth: 5.1172, magnitude:2.0551}
-   ];
+  controller('MyCtrl1', ['$scope', 'googleapikey', function ($scope, googleapikey) {
+      $scope.dataSources = [
+          {
+              name: "Wellington",
+              file: "weli.csv",
+              long: 174.5,
+              lat: -41.5,
+              year: 2013,
+              month: 7
+          },
+          {
+              name: "Christchurch",
+              file: "chch.csv",
+              long: 172.62,
+              lat: -43.53,
+              year: 2011,
+              month: 2
 
-   /* Note we can easily add markers on the static map too... */
-   var tile_url = 'http://maps.googleapis.com/maps/api/staticmap?center='+ clat +"," + clong +'&zoom=10&size=640x640&maptype=terrain' +
-                   '&sensor=false&visual_refresh=true&format=png32';
+          }
+      ];
+      $scope.dataSource = $scope.dataSources[1];
 
-   var z = d3.scale.linear().domain([-180, 180]).range([-250, 250]);
-   var x = d3.scale.linear().domain([-90, 90]).range([-250, 250]);
-   var y = d3.scale.linear().domain([0, 30]).range([250, -250]);
+      var width = window.innerWidth,
+          height = window.innerHeight;
+      var windowHalfX = width / 2;
+      var windowHalfY = height / 2;
+      var data = [];
+      var spheres = [], group;
+      var camera, scene, renderer;
+      var geometry, material, mesh;
 
+      var targetRotationY = -2 * Math.PI / 3;
+      // var targetRotationX = - 2*Math.PI/3;
+      var targetRotationOnMouseDown = 0;
 
-    var camera, scene, renderer;
-    var geometry, material, mesh;
+      var mouseX = 0, mouseY = 0;
+      var mouseXOnMouseDown = 0, mouseYOnMouseDown;
 
-    var spheres = [], group;
+      $scope.go = function(){
 
-    var targetRotationY = - 2*Math.PI/3;
-   // var targetRotationX = - 2*Math.PI/3;
-    var targetRotationOnMouseDown = 0;
+          init();
+          animate();
 
-    var mouseX = 0, mouseY = 0;
-    var mouseXOnMouseDown = 0, mouseYOnMouseDown;
-
-    var windowHalfX = window.innerWidth / 2;
-    var windowHalfY = window.innerHeight / 2;
-
-    init();
-    animate();
-
-    function init() {
-        // http://threejs.org/docs/#Reference/Cameras/PerspectiveCamera
-        // field of view, aspectRatio, near, far
-        camera = new THREE.PerspectiveCamera( 80, window.innerWidth / window.innerHeight, 1, 10000 );
-
-        // the camera starts at 0,0,0
-        // so pull it back
-        camera.position.z = 800;
-
-        scene = new THREE.Scene();
-        group = new THREE.Object3D();
-
-        // create a set of coordinate axes to help orient user
-        //    specify length in pixels in each direction
-        //var axes = new THREE.AxisHelper(100);
-        //group.add( axes );
+      };
 
 
-        // Add a plane every 10km
-        // eventually the bottom one could be lava... http://threejs.org/examples/#webgl_shader_lava
-        var plane;
-        var geometry = new THREE.PlaneGeometry( 500, 500 );
-        // Without this rotation the plane is up and down
-        geometry.applyMatrix( new THREE.Matrix4().makeRotationX( - Math.PI / 2 ) );
-        var material = new THREE.MeshBasicMaterial( { color: 0xff3333,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.6 });
+      function init() {
 
-        for(var i = 1; i <= 3; i++){
-            plane = new THREE.Mesh( geometry, material );
-            plane.position.y = y(10 * i);
-            group.add( plane );
-        }
+         var year = $scope.dataSource.year,
+            month = $scope.dataSource.month;
+         var clong = $scope.dataSource.long,
+            clat = $scope.dataSource.lat;
+         var zoom = 10;
+         var tile_url = 'http://maps.googleapis.com/maps/api/staticmap?center=' + clat + "," + clong + '&zoom=' + zoom + '&size=640x640&maptype=terrain' +
+                          '&sensor=false&visual_refresh=true&format=png32';
 
+          // z = longitude (east/west)
+          // x = latitude (north/south)
+          // Now Google maps maths...
+          var eath_circumference_at_equator = 40075017; // m
+          var pixels_at_circumference_at_zoom_24 = Math.pow(2, 32);
+          var meters_per_pixel_at_equator_at_zoom_24 = eath_circumference_at_equator / pixels_at_circumference_at_zoom_24;
 
-        // add a transparent cube with the map on the top
-        var backgroundColor = 0x802A2A;
+          var meters_per_pixel_at_equator_at_correct_zoom = Math.pow(2, 24 - zoom) * meters_per_pixel_at_equator_at_zoom_24;
 
-        var invisibleMaterial = new THREE.MeshBasicMaterial( {
-                color: backgroundColor,
-                transparent: true,side: THREE.DoubleSide, wireframe: true,
-                opacity: 0.1
-            });
-        var materials = [
-            invisibleMaterial,
-            invisibleMaterial,
+          var unit_at_latitude = Math.cos(clat * Math.PI / 180) * meters_per_pixel_at_equator_at_correct_zoom;
+          console.log("Unit at lat: " + unit_at_latitude + " meters per pixel");
 
-            new THREE.MeshBasicMaterial( {
-                map: THREE.ImageUtils.loadTexture( tile_url ),
-                side: THREE.DoubleSide,
-                overdraw: 0.5
-            }),
-            invisibleMaterial,
-            invisibleMaterial,
-            invisibleMaterial,
-            invisibleMaterial,
-        ];
+          //var radius_of_earth_equator = 6378137; // m
+          //var flatening_of_earth = 1/298.257223563;
+
+          //var radius_at_pole = radius_of_earth_equator * (1 - flatening_of_earth);
+          //var eccentricity_of_earth = Math.sqrt(Math.pow(radius_of_earth_equator, 2) - Math.pow(radius_at_pole, 2))/radius_of_earth_equator;
+
+          //var circumference_of_earth_around_poles = 2 * Math.PI * radius_at_pole;
+          //console.log(circumference_of_earth_around_poles);
+
+          // Uses magic number of 111 km / degree in latitude
+          var offset = 640 * unit_at_latitude / 111000 / 2;
+          console.log("Degrees: " + offset);
+          var z = d3.scale.linear().domain([clong - offset, clong + offset]).range([-250, 250]);
+          var x = d3.scale.linear().domain([clat - offset, clat + offset]).range([-250, 250]);
+          var y = d3.scale.linear().domain([0, 50]).range([250, -250]);
+          var r = d3.scale.linear().domain([0, 10]).range([1 , 25]);
 
 
 
-        mesh = new THREE.Mesh( new THREE.CubeGeometry( 500, 500, 500),
-                               new THREE.MeshFaceMaterial(materials) );
+          // THREE.js stuff---->
 
-        // sets the center...
-        mesh.position.set(0, 0, 0);
-        //mesh.matrixAutoUpdate = false;
-        //mesh.updateMatrix();
-        group.add( mesh );
-        // set up the shared sphere vars
-        var radius = 10,
-            segments = 16,
-            rings = 16;
+          // http://threejs.org/docs/#Reference/Cameras/PerspectiveCamera
+          // field of view, aspectRatio, near, far
+          camera = new THREE.PerspectiveCamera(80, width / height, 1, 1000);
 
-        // create the sphere's material
-        var sphereMaterial =
-          new THREE.MeshLambertMaterial({ color: 0xeeeeee });
+          // the camera starts at 0,0,0
+          // so pull it back
+          camera.position.z = 550;
+          camera.position.y = 120;
 
-        for (var i = 0; i < data.length; i++) {
-            var quake = data[i];
-            //console.log("Quake: " + quake);
-            // create a new mesh with
-            // sphere geometry
-            var sphere = new THREE.Mesh(
-              new THREE.SphereGeometry(radius, segments, rings),
-              sphereMaterial);
+          scene = new THREE.Scene();
+          group = new THREE.Object3D();
 
-            sphere.position.x = x(quake.latitude);
-            sphere.position.y = y(quake.depth);
-            sphere.position.z = z(quake.longitude);
-
-            sphere.matrixAutoUpdate = false;
-            sphere.updateMatrix();
-
-            // add the sphere to the scene
-            spheres.push(sphere);
-            group.add(sphere);
-        }
-
-        scene.add( group );
-
-        // create a point light
-        var pointLight =
-          new THREE.PointLight(0xFFFFFF);
-
-        // set its position
-        pointLight.position.x = 10;
-        pointLight.position.y = 50;
-        pointLight.position.z = 130;
-
-        // add to the scene
-        scene.add(pointLight);
+          // create a set of coordinate axes to help orient user
+          //    specify length in pixels in each direction
+          //var axes = new THREE.AxisHelper(100);
+          //group.add( axes );
 
 
-        renderer = new THREE.WebGLRenderer();
-        renderer.setSize( window.innerWidth, window.innerHeight );
+          // Add a plane every 10km
+          // eventually the bottom one could be lava... http://threejs.org/examples/#webgl_shader_lava
+          var plane;
+          var geometry = new THREE.PlaneGeometry(500, 500);
+          // Without this rotation the plane is up and down
+          geometry.applyMatrix(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
 
-        document.getElementById("mycanvas").appendChild( renderer.domElement );
-        document.addEventListener( 'mousedown', onDocumentMouseDown, false );
-    }
-
-   function onDocumentMouseDown( event ) {
-       event.preventDefault();
-
-       document.addEventListener( 'mousemove', onDocumentMouseMove, false );
-       document.addEventListener( 'mouseup', onDocumentMouseUp, false );
-       document.addEventListener( 'mouseout', onDocumentMouseUp, false );
-
-       mouseXOnMouseDown = event.clientX - windowHalfX;
-       targetRotationOnMouseDown = targetRotationY;
-    }
-
-    function onDocumentMouseMove( event ) {
-        mouseX = event.clientX - windowHalfX;
-        mouseY = event.clientY - windowHalfY;
-        targetRotationY = targetRotationOnMouseDown + ( mouseX - mouseXOnMouseDown ) * 0.02;
-    }
-
-    function onDocumentMouseUp( event ) {
-        document.removeEventListener( 'mousemove', onDocumentMouseMove, false );
-        document.removeEventListener( 'mouseup', onDocumentMouseUp, false );
-        document.removeEventListener( 'mouseout', onDocumentMouseUp, false );
-    }
+          var material = new THREE.MeshBasicMaterial({
+                  map:      THREE.ImageUtils.loadTexture(tile_url),
+                  side:     THREE.DoubleSide,
+                  transparent: true,
+                  opacity: 0.5
+              });
+          // add the map "surface"
+          for (var i = 0; i <= 4; i++) {
+              plane = new THREE.Mesh(geometry, material);
+              plane.position.y = y(10 * i);
+              group.add(plane);
+          }
 
 
-    function animate() {
-        // This will run at approximately 60fps
+          // set up the shared sphere vars
+          var segments = 18,
+            rings = 18;
 
-        // note: three.js includes requestAnimationFrame shim
-        requestAnimationFrame( animate );
+          // create the sphere's material
+          var sphereMaterial = new THREE.MeshLambertMaterial({
+              color:       0,
+//              transparent: true,
+//              opacity: 0.8
+          });
 
-        //mesh.rotation.x += 0.005;
-        group.rotation.y += (targetRotationY - group.rotation.y) * 0.05;
 
-        renderer.render( scene, camera );
-    }
+         // stupid cross origin thing...
+          var dataURL = "http://wfs-beta.geonet.org.nz/geoserver/geonet/ows?service=WFS&version=1.0.0&request=GetFeature" +
+            "&typeName=geonet:quake&outputFormat=csv&cql_filter=BBOX%28origin_geom," + (clong - offset).toFixed(2) +
+            "," + (clat - offset).toFixed(2) + "," + (clong + offset).toFixed(2) + "," + (clat + offset).toFixed(2) + "%29+AND+" +
+            "origintime%3E=%27" + year + "-" + month + "-1" +"%27" +
+            "+AND+magnitude%3E3";
 
-  }])
-  .controller('MyCtrl2', [function() {
+
+
+          d3.csv($scope.dataSource.file, function(csvdata){
+              // Only show the biggest N -  because christchurch has lots...
+            csvdata = csvdata.sort(function(a,b){return b.magnitude - a.magnitude;});
+            for (var i = 0; i < Math.min(400, csvdata.length); i++) {
+              var quake = csvdata[i];
+
+              // create a new mesh with
+              // sphere geometry
+              var sphere = new THREE.Mesh(
+                new THREE.SphereGeometry(r(quake.magnitude), segments, rings),
+                sphereMaterial);
+
+              sphere.position.x = x(quake.latitude);
+              sphere.position.y = y(quake.depth);
+              sphere.position.z = z(quake.longitude);
+
+              sphere.matrixAutoUpdate = false;
+              sphere.updateMatrix();
+
+              // add the sphere to the scene
+              spheres.push(sphere);
+              group.add(sphere);
+          }
+          });
+
+          scene.add(group);
+
+          renderer = new THREE.WebGLRenderer();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+
+          document.getElementById("mycanvas").appendChild(renderer.domElement);
+          document.addEventListener('mousedown', onDocumentMouseDown, false);
+      }
+
+      function onDocumentMouseDown(event) {
+          event.preventDefault();
+
+          document.addEventListener('mousemove', onDocumentMouseMove, false);
+          document.addEventListener('mouseup', onDocumentMouseUp, false);
+          document.addEventListener('mouseout', onDocumentMouseUp, false);
+
+          mouseXOnMouseDown = event.clientX - windowHalfX;
+          targetRotationOnMouseDown = targetRotationY;
+      }
+
+      function onDocumentMouseMove(event) {
+          mouseX = event.clientX - windowHalfX;
+          mouseY = event.clientY - windowHalfY;
+          targetRotationY = targetRotationOnMouseDown + ( mouseX - mouseXOnMouseDown ) * 0.02;
+      }
+
+      function onDocumentMouseUp(event) {
+          document.removeEventListener('mousemove', onDocumentMouseMove, false);
+          document.removeEventListener('mouseup', onDocumentMouseUp, false);
+          document.removeEventListener('mouseout', onDocumentMouseUp, false);
+      }
+
+
+      function animate() {
+          // This will run at approximately 60fps
+
+          // note: three.js includes requestAnimationFrame shim
+          requestAnimationFrame(animate);
+
+          //mesh.rotation.x += 0.005;
+          group.rotation.y += (targetRotationY - group.rotation.y) * 0.05;
+
+          renderer.render(scene, camera);
+      }
+
+  }
+  ])
+  .controller('MyCtrl2', [function () {
 
   }]);

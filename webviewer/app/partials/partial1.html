@@ -1,1 +1,14 @@
-<div id="mycanvas"></div>
+<div ng-init="locationSet = false;" ng-hide="locationSet">
+<select
+       ng-model="dataSource"
+       ng-options="d.name for d in dataSources">
+</select>
+    <button ng-click="locationSet = true; go();">Go!</button>
+</div>
+<div ng-show="locationSet">
+    <h2>{{ dataSource.name }}</h2>
+    <p>Note the map planes are every 10km deep. Showing the largest earthquakes since {{ dataSource.month }}/{{ dataSource.year }}.</p>
+    <div id="mycanvas"></div>
+</div>
+
+
