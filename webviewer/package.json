@@ -1,11 +1,4 @@
 {
-  "name": "angualrjs-seed",
-  "description": "A starter project for angular js",
-  "devDependencies": {
-        "phantomjs" : "*",
-        "karma" : "*",
-        "karma-junit-reporter" : "*",    
-        "karma-jasmine" : "*",
-        "karma-ng-scenario" : "*"
-    }
+  "name": "quakecloud",
+  "description": "A brief foray into WebGL programming to visualize the New Zealand Earthquake data",
 }
